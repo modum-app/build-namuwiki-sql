@@ -86,7 +86,7 @@ class SQLWriter:
     self.init_db()
 
     self.total_num_docs = 0
-    self.expected_total = expected;
+    self.expected_total = expected
 
     self.art = 0
     self.init_chunk()
