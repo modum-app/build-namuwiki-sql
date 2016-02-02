@@ -29,7 +29,7 @@ import signal
 signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 def usage():
-  print r'usage: build-namuwiki-sql.py [--no-data] [--force] [--output=path] [--sample=#]'
+  print r'usage: build-namuwiki-sql.py [--no-data] [--force] [--output=path] [-expected=#] [--sample=#]'
   print
   print r'example:'
   print r'  $ 7zcat namuwiki160126.7z | build-namuwiki-sql.py'
@@ -39,13 +39,14 @@ class Option:
   NoData = False # True if you want to build index-only dump
   Force = False  # True if you want to overwrite the existing file
   Output = ''    # output filename
+  Expected = 425677 # expected (or estimated) number of entries to feed (display progress bar)
   Sample = 0     # generates sample output with specified number of articles
 
 def config():
   try:
     opts,args = getopt.getopt(sys.argv[1:],
-                              'hnfo:s:',
-                              ['help','skip-data','force','output=','sample='])
+                              'hnfo:e:s:',
+                              ['help','no-data','force','output=','expected=','sample='])
     for k,v in opts:
       if k in ('-h','--help'):
         usage()
@@ -56,6 +57,8 @@ def config():
         Option.Force = True
       elif k in ('-o','--output'):
         Option.Output = v
+      elif k in ('-e','--expected'):
+        Option.Expected = int(v)
       elif k in ('-s','--sample'):
         Option.Sample = int(v)
     if not Option.Output:
@@ -75,7 +78,7 @@ class SQLWriter:
   nsfilter = (0,1,2,6)
   MaxArChunkSize = 1024*1024 # 1M
 
-  def __init__(self,output,force=False,nodata=False,sample=0):
+  def __init__(self,output,force=False,nodata=False,expected=0,sample=0):
     self.fn = output
     self.force = force
     self.nodata = nodata
@@ -83,7 +86,7 @@ class SQLWriter:
     self.init_db()
 
     self.total_num_docs = 0
-    self.expected_total = 400000
+    self.expected_total = expected;
 
     self.art = 0
     self.init_chunk()
@@ -177,6 +180,7 @@ def main():
   sqlWriter = SQLWriter(Option.Output,
                         nodata=Option.NoData,
                         force=Option.Force,
+                        expected=Option.Expected,
                         sample=Option.Sample)
   try:
     sqlWriter.run()
