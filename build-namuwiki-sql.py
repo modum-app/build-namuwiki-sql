@@ -123,7 +123,7 @@ class SQLWriter:
         self.off += len(data)
         self.buf += data
       except Exception as e:
-        print repr(name), e.message
+        print repr(name), e.message, data[:80]
         #sys.exit(1)
 
   def commit_chunk(self):
@@ -161,7 +161,7 @@ class SQLWriter:
 
   def on_progress(self,num):
     self.total_num_docs += num
-    print '\r',' '*60,'\r',self.total_num_docs,'(+%d, about %.2f%%)'%(num, self.total_num_docs/float(self.expected_total)*100),': ',
+    print '\r',' '*60,'\r%08d'%(self.total_num_docs,),'(+% 4d, ~ %02.02f%%)'%(num, self.total_num_docs/float(self.expected_total)*100),': ',
     sys.stdout.flush()
 
   def done(self):
