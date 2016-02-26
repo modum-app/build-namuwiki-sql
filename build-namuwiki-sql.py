@@ -18,6 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+import re
 import os
 import sys
 import getopt
@@ -29,7 +30,7 @@ import signal
 signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 def usage():
-  print r'usage: build-namuwiki-sql.py [--no-data] [--force] [--output=path] [-expected=#] [--sample=#]'
+  print r'usage: build-namuwiki-sql.py [--no-data] [--force] [--output=path] [--expected=#] [--sample=#]'
   print
   print r'example:'
   print r'  $ 7zcat namuwiki160126.7z | build-namuwiki-sql.py'
@@ -104,6 +105,8 @@ class SQLWriter:
     self.c.execute("""CREATE TABLE doc (name TEXT UNIQUE, art INTEGER, off INTEGER, len INTEGER);""")
     self.c.execute("""CREATE VIRTUAL TABLE idx using fts4(name TEXT);""")
     self.c.execute("""CREATE TABLE art (art INTEGER PRIMARY KEY, data BLOB);""")
+    self.c.execute("""CREATE TABLE cat (name TEXT, artn TEXT);""")
+    self.c.execute("""CREATE TABLE inc (name TEXT, artn TEXT);""")
 
   def init_chunk(self):
     self.art += 1
@@ -113,6 +116,23 @@ class SQLWriter:
   def close_db(self):
     self.conn.commit()
     self.conn.close()
+
+  def read_cats(self,cname,data):
+    """read categories from the article and its includes."""
+    categories = re.findall(r'\[\[분류:(.+?)\]\]', data)
+    for cat in categories:
+      self.c.execute("""INSERT INTO cat(name,artn) VALUES(?,?)""", (cat.decode('utf8'),cname))
+
+    includes = re.findall(r'\[include\((.+?)(?:,.+)?\)\]', data)
+    for inc in includes:
+      #normalize names that have spaces between namespace and title; e.g. '틀: 이름'
+      nsname = inc[:inc.find(':')+1]
+      if nsname and (nsname in SQLWriter.nsprefix):
+        nnc = re.sub(r'^('+nsname+r') +',r'\1',inc,1)
+        self.c.execute("""INSERT INTO inc(name,artn) VALUES(?,?)""", (nnc.decode('utf8'),cname))
+      else:
+        #found a simple mistake from author, usually it's safe to ignore.
+        print repr(cname), 'found an invalid include:', inc, nsname
 
   def on_row(self,row):
     ns,name,data = row
@@ -125,6 +145,9 @@ class SQLWriter:
         self.c.execute("""INSERT INTO idx(name) VALUES(?)""", (cname,))
         self.off += len(data)
         self.buf += data
+
+        self.read_cats(cname,data)
+
       except Exception as e:
         print repr(name), e.message, data[:80]
         #sys.exit(1)
