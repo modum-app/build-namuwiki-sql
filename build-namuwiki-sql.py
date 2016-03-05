@@ -24,6 +24,7 @@ import sys
 import getopt
 import sqlite3
 import pylzma
+import json
 from datetime import datetime
 
 import signal
@@ -40,7 +41,7 @@ class Option:
   NoData = False # True if you want to build index-only dump
   Force = False  # True if you want to overwrite the existing file
   Output = ''    # output filename
-  Expected = 425677 # expected (or estimated) number of entries to feed (display progress bar)
+  Expected = 462364 # expected (or estimated) number of entries to feed (display progress bar)
   Sample = 0     # generates sample output with specified number of articles
 
 def config():
@@ -70,6 +71,43 @@ def config():
   except getopt.GetoptError, err:
     print str(err)
     usage()
+
+
+class JSONStream:
+  def __init__(self, inputStream):
+    self.stream = inputStream
+    self.buffer = self.read()
+    assert self.buffer.startswith('[')
+    self.buffer = self.buffer[1:]
+    assert self.buffer.startswith('{')
+
+  def __iter__(self):
+    return iter(self.next, None)
+
+  def read(self):
+    return self.stream.read(8192*2)
+
+  def item(self):
+    rear = self.buffer.find('},{"namespace":"')
+    rear = self.buffer.find('}]\n') if rear==-1 else rear
+    return rear>0
+
+  def move(self):
+    rear = self.buffer.find('},{"namespace":"')
+    rear = self.buffer.find('}]\n') if rear==-1 else rear
+    item = json.loads(self.buffer[:rear+1])
+    self.buffer = self.buffer[rear+2:]
+    return item
+
+  def next(self):
+    while self.item()==False:
+      data = self.read()
+      if data=='':
+        print self.buffer
+        assert self.buffer=='' or (len(self.buffer)==1 and self.buffer[0]=='\n')
+        return None
+      self.buffer += data
+    return self.move()
 
 
 class SQLWriter:
@@ -132,15 +170,17 @@ class SQLWriter:
         self.c.execute("""INSERT INTO inc(name,artn) VALUES(?,?)""", (nnc.decode('utf8'),cname))
       else:
         #found a simple mistake from author, usually it's safe to ignore.
-        print repr(cname), 'found an invalid include:', inc, nsname
+        print repr(cname),cname, 'found an invalid include:', inc, nsname
 
   def on_row(self,row):
-    ns,name,data = row
+    data,ns,name = row.values()
+    data = data.encode('utf8')
+    ns = int(ns)
     if ns in SQLWriter.nsfilter:
       if self.off+len(data) > SQLWriter.MaxArChunkSize:
         self.commit_chunk()
       try:
-        cname = (SQLWriter.nsprefix[ns]+name).decode('utf8');
+        cname = (SQLWriter.nsprefix[ns].decode('utf8')+name)
         self.c.execute("""INSERT INTO doc(name,art,off,len) VALUES(?,?,?,?)""", (cname,self.art,self.off,len(data)))
         self.c.execute("""INSERT INTO idx(name) VALUES(?)""", (cname,))
         self.off += len(data)
@@ -149,7 +189,7 @@ class SQLWriter:
         self.read_cats(cname,data)
 
       except Exception as e:
-        print repr(name), e.message, data[:80]
+        print 'Err:',repr(name), e.message, data[:80]
         #sys.exit(1)
 
   def commit_chunk(self):
@@ -160,30 +200,12 @@ class SQLWriter:
       self.conn.commit()
 
   def run(self):
-    for line in sys.stdin:
-      if line.startswith('INSERT INTO'):
-        values = line[line.find('('):-2]
-        assert values
-        assert values[0] == '('
-        assert values[-1] == ')'
-        rows = eval(values)
-        nrows = len(rows)
-        self.on_progress(nrows)
+    for item in JSONStream(sys.stdin):
+      self.on_row(item)
+      self.on_progress(1)
 
-        prog=0
-        for i,row in enumerate(rows):
-          self.on_row(row)
-          curr=int(i*20./nrows)
-          if prog<curr:
-            prog=curr
-            sys.stdout.write('.')
-            sys.stdout.flush()
-
-        sys.stdout.write('.')
-        sys.stdout.flush()
-
-        if self.sample and self.total_num_docs > self.sample:
-          return
+      if self.sample and self.total_num_docs >= self.sample:
+        return
 
   def on_progress(self,num):
     self.total_num_docs += num
