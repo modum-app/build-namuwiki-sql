@@ -113,7 +113,7 @@ class JSONStream:
 class SQLWriter:
   """ create sqlite db from mysqldump using standard input
   """
-  nsprefix = ("","틀:","분류:","파일:","사용자:","#ns5:","나무위키:","#ns7:","#ns8:")
+  nsprefix = (u"",u"틀:",u"분류:",u"파일:",u"사용자:",u"#ns5:",u"나무위키:",u"#ns7:",u"#ns8:")
   nsfilter = (0,1,2,6)
   MaxArChunkSize = 1024*1024 # 1M
 
@@ -149,7 +149,7 @@ class SQLWriter:
   def init_chunk(self):
     self.art += 1
     self.off = 0
-    self.buf = ''
+    self.buf = u''
 
   def close_db(self):
     self.conn.commit()
@@ -157,36 +157,36 @@ class SQLWriter:
 
   def read_cats(self,cname,data):
     """read categories from the article and its includes."""
-    categories = re.findall(r'\[\[분류:(.+?)\]\]', data)
+    categories = re.findall(ur'\[\[분류:(.+?)\]\]', data)
     for cat in categories:
-      self.c.execute("""INSERT INTO cat(name,artn) VALUES(?,?)""", (cat.decode('utf8'),cname))
+      self.c.execute("""INSERT INTO cat(name,artn) VALUES(?,?)""", (cat,cname))
 
-    includes = re.findall(r'\[include\((.+?)(?:,.+)?\)\]', data)
+    includes = re.findall(ur'\[include\((.+?)(?:,.+)?\)\]', data)
     for inc in includes:
       #normalize names that have spaces between namespace and title; e.g. '틀: 이름'
       nsname = inc[:inc.find(':')+1]
       if nsname and (nsname in SQLWriter.nsprefix):
-        nnc = re.sub(r'^('+nsname+r') +',r'\1',inc,1)
-        self.c.execute("""INSERT INTO inc(name,artn) VALUES(?,?)""", (nnc.decode('utf8'),cname))
+        nnc = re.sub(ur'^('+nsname+r') +',ur'\1',inc,1)
+        self.c.execute("""INSERT INTO inc(name,artn) VALUES(?,?)""", (nnc,cname))
       else:
-        #found a simple mistake from author, usually it's safe to ignore.
-        print repr(cname),cname, 'found an invalid include:', inc, nsname
+        self.c.execute("""INSERT INTO inc(name,artn) VALUES(?,?)""", (inc,cname))
 
   def on_row(self,row):
     data,ns,name = row.values()
-    data = data.encode('utf8')
+    datalen = len(buffer(data))
     ns = int(ns)
     if ns in SQLWriter.nsfilter:
-      if self.off+len(data) > SQLWriter.MaxArChunkSize:
+      if self.off+datalen > SQLWriter.MaxArChunkSize:
         self.commit_chunk()
       try:
-        cname = (SQLWriter.nsprefix[ns].decode('utf8')+name)
-        self.c.execute("""INSERT INTO doc(name,art,off,len) VALUES(?,?,?,?)""", (cname,self.art,self.off,len(data)))
+        cname = (SQLWriter.nsprefix[ns]+name)
+        self.c.execute("""INSERT INTO doc(name,art,off,len) VALUES(?,?,?,?)""", (cname,self.art,self.off,datalen))
         self.c.execute("""INSERT INTO idx(name) VALUES(?)""", (cname,))
-        self.off += len(data)
+        self.off += datalen;
         self.buf += data
 
-        self.read_cats(cname,data)
+        if not self.nodata:
+          self.read_cats(cname,data)
 
       except Exception as e:
         print 'Err:',repr(name), e.message, data[:80]
@@ -194,7 +194,7 @@ class SQLWriter:
 
   def commit_chunk(self):
     if self.off:
-      cdata = buffer('') if self.nodata else buffer(pylzma.compress(self.buf))
+      cdata = buffer(u'') if self.nodata else buffer(pylzma.compress(buffer(self.buf)))
       self.c.execute("""INSERT INTO art(art,data) VALUES(?,?)""", (self.art,cdata))
       self.init_chunk()
       self.conn.commit()
