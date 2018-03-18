@@ -41,7 +41,7 @@ class Option:
   NoData = False # True if you want to build index-only dump
   Force = False  # True if you want to overwrite the existing file
   Output = ''    # output filename
-  Expected = 462364 # expected (or estimated) number of entries to feed (display progress bar)
+  Expected = 547202 # expected (or estimated) number of entries to feed (display progress bar)
   Sample = 0     # generates sample output with specified number of articles
 
 def config():
@@ -89,12 +89,12 @@ class JSONStream:
 
   def item(self):
     rear = self.buffer.find('},{"namespace":"')
-    rear = self.buffer.find('}]\n') if rear==-1 else rear
+    rear = self.buffer.find('}]\n') if rear == -1 else rear
     return rear>0
 
   def move(self):
     rear = self.buffer.find('},{"namespace":"')
-    rear = self.buffer.find('}]\n') if rear==-1 else rear
+    rear = self.buffer.find('}]\n') if rear == -1 else rear
     item = json.loads(self.buffer[:rear+1])
     self.buffer = self.buffer[rear+2:]
     return item
@@ -103,10 +103,13 @@ class JSONStream:
     while self.item()==False:
       data = self.read()
       if data=='':
-        print self.buffer
-        assert self.buffer=='' or (len(self.buffer)==1 and self.buffer[0]=='\n')
-        return None
-      self.buffer += data
+        self.buffer += '\n'
+        if not self.item():
+          print repr(self.buffer)
+          assert self.buffer=='' or (len(self.buffer)==1 and self.buffer[0]=='\n')
+          return None
+      else:
+        self.buffer += data
     return self.move()
 
 
@@ -172,7 +175,7 @@ class SQLWriter:
         self.c.execute("""INSERT INTO inc(name,artn) VALUES(?,?)""", (inc,cname))
 
   def on_row(self,row):
-    data,ns,name = row.values()
+    data,ns,contrib,name = row.values()
     datalen = len(buffer(data))
     ns = int(ns)
     if ns in SQLWriter.nsfilter:
