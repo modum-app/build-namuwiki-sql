@@ -27,8 +27,9 @@ import pylzma
 import json
 from datetime import datetime
 
-import signal
-signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+if sys.platform != 'win32':
+  import signal
+  signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 def usage():
   print r'usage: build-namuwiki-sql.py [--no-data] [--force] [--output=path] [--expected=#] [--sample=#]'
