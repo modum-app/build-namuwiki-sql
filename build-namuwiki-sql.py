@@ -42,7 +42,7 @@ class Option:
   NoData = False # True if you want to build index-only dump
   Force = False  # True if you want to overwrite the existing file
   Output = ''    # output filename
-  Expected = 547202 # expected (or estimated) number of entries to feed (display progress bar)
+  Expected = 565984 # expected (or estimated) number of entries to feed (display progress bar)
   Sample = 0     # generates sample output with specified number of articles
 
 def config():
