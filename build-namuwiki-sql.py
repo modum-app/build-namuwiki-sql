@@ -107,7 +107,7 @@ class JSONStream:
         self.buffer += '\n'
         if not self.item():
           print repr(self.buffer)
-          assert self.buffer=='' or (len(self.buffer)==1 and self.buffer[0]=='\n')
+          assert not self.buffer.strip()
           return None
       else:
         self.buffer += data
