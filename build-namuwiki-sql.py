@@ -35,7 +35,7 @@ def usage():
   print r'usage: build-namuwiki-sql.py [--no-data] [--force] [--output=path] [--expected=#] [--sample=#]'
   print
   print r'example:'
-  print r'  $ 7zcat namuwiki160126.7z | build-namuwiki-sql.py'
+  print r'  $ 7zr e -so -bd namuwiki180326.7z *.json | python build-namuwiki-sql.py'
   print
 
 class Option:
@@ -64,6 +64,7 @@ def config():
         Option.Expected = int(v)
       elif k in ('-s','--sample'):
         Option.Sample = int(v)
+        Option.Expected = int(v)
     if not Option.Output:
       # default output filename
       date = datetime.now().date().strftime("%y%m%d")
@@ -177,7 +178,7 @@ class SQLWriter:
 
   def on_row(self,row):
     data,ns,contrib,name = row.values()
-    datalen = len(buffer(data))
+    datalen = len(buffer(data.encode('utf-16-le')))
     ns = int(ns)
     if ns in SQLWriter.nsfilter:
       if self.off+datalen > SQLWriter.MaxArChunkSize:
@@ -198,7 +199,7 @@ class SQLWriter:
 
   def commit_chunk(self):
     if self.off:
-      cdata = buffer(u'') if self.nodata else buffer(pylzma.compress(buffer(self.buf)))
+      cdata = buffer(u'') if self.nodata else buffer(pylzma.compress(buffer(self.buf.encode('utf-16-le'))))
       self.c.execute("""INSERT INTO art(art,data) VALUES(?,?)""", (self.art,cdata))
       self.init_chunk()
       self.conn.commit()

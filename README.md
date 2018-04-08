@@ -6,14 +6,14 @@
 
 1. ``git clone https://github.com/modum-app/build-namuwiki-sql.git && cd build-namuwiki-sql``
 2. 같은 위치에 [나무위키 공식 덤프](https://namu.wiki/w/나무위키:데이터베이스 덤프)를 내려받기 (7z 권장)
-3. ``time 7z e -so namuwiki180326.7z namuwiki_20180326.json | ./build-namuwiki-sql.py``
+3. ``time 7zr e -so -bd namuwiki180326.7z *.json | python build-namuwiki-sql.py``
 
 
 ### 기타
 
-2018년 3월 26일 덤프 기준으로, 제 컴퓨터에서 변환하는 데 약 2시간 걸렸습니다.
+2018년 3월 26일 덤프 기준으로, 제 컴퓨터에서 변환하는 데 약 90분 걸렸습니다.
 * 원본 파일 크기 `8.3G(7z 1.2G)`
-* 결과 파일 크기 `1.4G`
+* 결과 파일 크기 `1.3G`
 
 
 ### License
