@@ -32,11 +32,11 @@ if sys.platform != 'win32':
   signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 def usage():
-  print r'usage: build-namuwiki-sql.py [--no-data] [--force] [--output=path] [--expected=#] [--sample=#]'
-  print
-  print r'example:'
-  print r'  $ 7zr e -so -bd namuwiki180326.7z *.json | python build-namuwiki-sql.py'
-  print
+  print('usage: build-namuwiki-sql.py [--no-data] [--force] [--output=path] [--expected=#] [--sample=#]')
+  print()
+  print('example:')
+  print('  $ 7zr e -so -bd namuwiki180326.7z *.json | python3 build-namuwiki-sql.py')
+  print()
 
 class Option:
   NoData = False # True if you want to build index-only dump
@@ -70,8 +70,8 @@ def config():
       date = datetime.now().date().strftime("%y%m%d")
       Option.Output = 'namuwiki-'+date+'.sql'
     return True
-  except getopt.GetoptError, err:
-    print str(err)
+  except getopt.GetoptError as err:
+    print(str(err))
     usage()
 
 
@@ -107,7 +107,7 @@ class JSONStream:
       if data=='':
         self.buffer += '\n'
         if not self.item():
-          print repr(self.buffer)
+          print(repr(self.buffer))
           assert not self.buffer.strip()
           return None
       else:
@@ -118,7 +118,7 @@ class JSONStream:
 class SQLWriter:
   """ create sqlite db from mysqldump using standard input
   """
-  nsprefix = (u"",u"틀:",u"분류:",u"파일:",u"사용자:",u"#ns5:",u"나무위키:",u"#ns7:",u"#ns8:")
+  nsprefix = ("","틀:","분류:","파일:","사용자:","#ns5:","나무위키:","#ns7:","#ns8:")
   nsfilter = (0,1,2,6)
   MaxArChunkSize = 1024*1024 # 1M
 
@@ -140,7 +140,7 @@ class SQLWriter:
       if self.force:
         os.remove(self.fn)
       else:
-        print 'file %s already exists!' % (self.fn,)
+        print(f'file {self.fn} already exists!')
         sys.exit(2)
 
     self.conn = sqlite3.connect(self.fn)
@@ -154,7 +154,7 @@ class SQLWriter:
   def init_chunk(self):
     self.art += 1
     self.off = 0
-    self.buf = u''
+    self.buf = ''
 
   def close_db(self):
     self.conn.commit()
@@ -162,23 +162,23 @@ class SQLWriter:
 
   def read_cats(self,cname,data):
     """read categories from the article and its includes."""
-    categories = re.findall(ur'\[\[분류:(.+?)\]\]', data)
+    categories = re.findall(r'\[\[분류:(.+?)\]\]', data)
     for cat in categories:
       self.c.execute("""INSERT INTO cat(name,artn) VALUES(?,?)""", (cat,cname))
 
-    includes = re.findall(ur'\[include\((.+?)(?:,.+)?\)\]', data)
+    includes = re.findall(r'\[include\((.+?)(?:,.+)?\)\]', data)
     for inc in includes:
       #normalize names that have spaces between namespace and title; e.g. '틀: 이름'
       nsname = inc[:inc.find(':')+1]
       if nsname and (nsname in SQLWriter.nsprefix):
-        nnc = re.sub(ur'^('+nsname+r') +',ur'\1',inc,1)
+        nnc = re.sub(r'^('+nsname+r') +',r'\1',inc,1)
         self.c.execute("""INSERT INTO inc(name,artn) VALUES(?,?)""", (nnc,cname))
       else:
         self.c.execute("""INSERT INTO inc(name,artn) VALUES(?,?)""", (inc,cname))
 
   def on_row(self,row):
-    data,ns,contrib,name = row.values()
-    datalen = len(buffer(data.encode('utf-16-le')))
+    data,ns,name = row['text'],row['namespace'],row['title']
+    datalen = len(bytes(data, 'utf-16-le'))
     ns = int(ns)
     if ns in SQLWriter.nsfilter:
       if self.off+datalen > SQLWriter.MaxArChunkSize:
@@ -194,12 +194,12 @@ class SQLWriter:
           self.read_cats(cname,data)
 
       except Exception as e:
-        print 'Err:',repr(name), e.message, data[:80]
+        print('Err:',repr(name), e.message, data[:80])
         #sys.exit(1)
 
   def commit_chunk(self):
     if self.off:
-      cdata = buffer(u'') if self.nodata else buffer(pylzma.compress(buffer(self.buf.encode('utf-16-le'))))
+      cdata = '' if self.nodata else pylzma.compress(self.buf.encode('utf-16-le'))
       self.c.execute("""INSERT INTO art(art,data) VALUES(?,?)""", (self.art,cdata))
       self.init_chunk()
       self.conn.commit()
@@ -214,13 +214,16 @@ class SQLWriter:
 
   def on_progress(self,num):
     self.total_num_docs += num
-    print '\r',' '*60,'\r%08d'%(self.total_num_docs,),'(+% 4d, ~ %02.02f%%)'%(num, self.total_num_docs/float(self.expected_total)*100),': ',
-    sys.stdout.flush()
+    print('\r',
+          ' '*60,
+          f'\r{self.total_num_docs:08d},(+{num: 4d}, ~ {self.total_num_docs/float(self.expected_total)*100:02.02f}%): ',
+          end='',
+          flush=True)
 
   def done(self):
     self.close_db()
-    print 'done'
-    print '%d entires were inserted in total'%self.total_num_docs
+    print('done')
+    print(f'{self.total_num_docs} entires were inserted in total')
 
 
 def main():
