@@ -164,7 +164,8 @@ class SQLWriter:
     """read categories from the article and its includes."""
     categories = re.findall(r'\[\[분류:(.+?)\]\]', data)
     for cat in categories:
-      cat = re.split(r'(?<!\\)\|',s)[0].strip()
+      cat = re.split(r'(?<!\\)\|',cat)[0].strip()
+      cat = re.sub(r'\\(.)','\g<1>',cat)
       self.c.execute("""INSERT INTO cat(name,artn) VALUES(?,?)""", (cat,cname))
 
     includes = re.findall(r'\[include\((.+?)(?:,.+)?\)\]', data)
